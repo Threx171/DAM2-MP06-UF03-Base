@@ -1,65 +1,72 @@
 package cat.iesesteveterradas;
 
-import java.io.IOException;
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import org.basex.api.client.ClientSession;
 import org.basex.core.*;
-import org.basex.core.cmd.*;
-
-
+import org.basex.core.cmd.XQuery;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
 public class Main {
-    private static final Logger logger = LoggerFactory.getLogger(Main.class);    
+    private static final Logger logger = LoggerFactory.getLogger(Main.class);
 
     public static void main(String[] args) throws IOException {
-         // Initialize connection details
+        // Initialize connection details
         String host = "127.0.0.1";
         int port = 1984;
         String username = "admin"; // Default username
         String password = "admin"; // Default password
 
-        // Establish a connection to the BaseX server
+        // Directorio de entrada
+        File inputDirectory = new File("./data/input");
+        // Directorio de salida
+        File outputDirectory = new File("./data/output");
+        // Verificar si el directorio de salida existe, si no, crearlo
+        if (!outputDirectory.exists()) {
+            outputDirectory.mkdirs();
+        }
+
+        // Obtener la lista de archivos en el directorio de entrada
+        File[] files = inputDirectory.listFiles();
+
+        // Establecer una conexión con el servidor BaseX
         try (ClientSession session = new ClientSession(host, port, username, password)) {
             logger.info("Connected to BaseX server.");
 
-            session.execute(new Open("factbook")); 
-            
-            // Example query - adjust as needed
-            String myQuery = "sum(//country/@population/number())";
+            // Iterar sobre cada archivo en el directorio de entrada
+            for (File file : files) {
+                // Verificar que el archivo sea un archivo de consulta
+                System.out.println(file.toPath());
+                if (file.isFile() && file.getName().toLowerCase().endsWith(".xq")) {
+                    System.out.println("condicion");
+                    // Obtener el contenido de la consulta
+                    String query = Files.readString(file.toPath());
+                    // Obtener el nombre del archivo sin la extensión
+                    String fileNameWithoutExtension = file.getName().substring(0, file.getName().lastIndexOf("."));
+                    logger.info("Executing query from file: " + fileNameWithoutExtension);
 
-            // Execute the query
-            String result = session.execute(new XQuery(myQuery));
-            // Print the result
-            logger.info("Query Result:");
-            logger.info(result);
+                    // Ejecutar la consulta
+                    String result = session.execute(new XQuery(query));
 
-            myQuery = """
-                declare function local:gdpPerArea($country as element(country)) as xs:double? {
-                    let $gdpTotal := number($country/@gdp_total) * 1000000 (: Convertint de milions a unitats per precisió :)
-                    let $totalArea := number($country/@total_area) (: Asumint que l'àrea està en quilòmetres quadrats :)
-                    return if ($totalArea > 0) then $gdpTotal div $totalArea else ()
-                  };
-                
-                  for $country in //country
-                  let $gdpRatio := local:gdpPerArea($country)
-                  order by $gdpRatio descending
-                  return 
-                    <country name="{$country/@name}" gdp_per_area="{$gdpRatio}"/>                    
-            """;
+                    // Guardar el resultado como un archivo XML en el directorio de salida
+                    String outputFilePath = outputDirectory.getAbsolutePath() + File.separator + fileNameWithoutExtension + ".xml";
+                    try (FileWriter writer = new FileWriter(outputFilePath)) {
+                        writer.write(result);
+                    } catch (IOException e) {
+                        logger.error("Error writing output file: " + e.getMessage());
+                    }
 
-            // Execute the query
-            result = session.execute(new XQuery(myQuery));
-            // Print the result
-            logger.info("Query Result:");
-            logger.info(result);
-
+                    logger.info("Query result saved as: " + outputFilePath);
+                }
+            }
         } catch (BaseXException e) {
             logger.error("Error connecting or executing the query: " + e.getMessage());
         } catch (IOException e) {
             logger.error(e.getMessage());
-        }        
+        }
     }
 }
