@@ -4,7 +4,6 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-
 import org.basex.api.client.ClientSession;
 import org.basex.core.*;
 import org.basex.core.cmd.XQuery;
